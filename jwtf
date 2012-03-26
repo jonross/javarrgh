@@ -1,0 +1,76 @@
+#!/bin/sh
+#
+# jwtf -p PID
+# Run jstack on PID every second
+#
+# jwtf -f
+# Filter output for useful threads
+#
+# jwtf -x
+# Combined mode, do both
+
+filter() {
+    perl -n000 -e '
+
+        # VM threads
+    
+        next if /"Attach Listener/;
+        next if /"AWT-AppKit/;
+        next if /"AWT-EventQueue-\d+/;
+        next if /"AWT-Shutdown/;
+        next if /"C2 CompilerThread/;
+        next if /"CompilerThread\d+/;
+        next if /"Dispatcher-Thread-\d+/;
+        next if /"Finalizer/;
+        next if /"Gang worker/;
+        next if /"Java2D Disposer/;
+        next if /"JDWP Event Helper/;
+        next if /"JDWP Transport Listener/;
+        next if /JNI global references:/;
+        next if /"Low Memory Detector/;
+        next if /"Reference Handler/;
+        next if /"Signal Dispatcher/;
+        next if /"Surrogate Locker Thread/;
+        next if /"VM Periodic Task/;
+        next if /"VM Thread/;
+
+        # Other not useful
+
+        next if /"ajp-\d+-(Acceptor|Poller|CometPoller)/;
+        next if /AprEndpoint\$Worker.await/;
+        next if /Thread.State: TIMED_WAITING \(sleeping/;  # Thread.sleep
+        next if /Thread.State: TIMED_WAITING \(on object monitor/;  # Object.wait
+        next if /PlainSocketImpl.socketAccept/; # network socket wait
+        next if /EPollArrayWrapper.epollWait/; # nio select
+        next if /concurrent.locks.LockSupport.park/; # lock wait
+
+        print
+    '
+}
+
+case "$1" in
+    -p)
+        shift
+        while true; do
+            jstack "$@"
+            echo ================================================================================
+            echo ""
+            sleep 1
+        done
+        ;;
+    -f)
+        filter
+        exit $?
+        ;;
+    -x)
+        shift
+        $0 -p "$@" | $0 -f
+        ;;
+    *)
+        echo "Must specify one of -p, -f, -x" >&2
+        exit 1
+        ;;
+esac
+
+    
+    
